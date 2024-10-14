@@ -19,5 +19,8 @@
     "no_data_found": "Veri bulunamadı",
     "stock_updated": "Hisse güncellendi",
     "failed_to_add_stock": "Hisse eklenemedi",
-    "failed_to_update_stock": "Hisse güncellenemedi"
+    "failed_to_update_stock": "Hisse güncellenemedi",
+    "symbol":"Hisse Kodu",
+    "update_stock":"Hisse Güncelle",
+    "last_price":"Son Fiyat"
 }

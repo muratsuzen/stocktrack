@@ -21,5 +21,6 @@
     "failed_to_add_stock": "Failed to add stock",
     "failed_to_update_stock": "Failed to update stock",
     "symbol":"Symbol",
-    "update_stock":"Update Stock"
+    "update_stock":"Update Stock",
+    "last_price":"Last Price"
 }

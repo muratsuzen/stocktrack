@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../extensions/shared_preferences_extension.dart';
+import '../extensions/stock_price_fetcher.dart';
 
 class Stock {
   final String symbol;
@@ -42,75 +43,82 @@ class _PortfolioScreenState extends State<PortfolioScreen> {
   double _totalValue = 0;
   String? _userEmail;
 
+  double? _totalCost; // Toplam maliyet
+  double profitLoss = 0.0; // Kar/Zarar tutarı
+
+
   final NumberFormat _numberFormat =
       NumberFormat('#,##0.00', 'tr_TR'); // Türkçe format
 
-@override
-void initState() {
-  super.initState();
-  _fetchUserEmail().then((_) {
-    if (_userEmail != null) {
-      _fetchStocks(); // E-posta başarıyla alındıysa hisse senetlerini çek
-    } else {
-      print("User email is null, cannot fetch stocks.");
-    }
-  });
-}
-
-Future<void> _fetchUserEmail() async {
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
-  _userEmail = prefs.getString('userEmail'); // E-posta adresini al
-  _userEmail = _sanitizedEmail(_userEmail); // E-posta adresini temizle
-  print("Fetched user email: $_userEmail");
-}
-
-// Örnek sanitize fonksiyonu
-String? _sanitizedEmail(String? email) {
-  if (email == null) return null;
-  // Geçersiz karakterleri değiştir
-  return email
-      .replaceAll('@', '_at_')
-      .replaceAll('.', '_dot_')
-      .trim(); // Boşlukları temizle
-}
-
-
-List<PieChartSectionData> _buildPieChartSections() {
-  // Eğer hisse senedi listesi boşsa, boş bir liste döndür
-  if (_stocks.isEmpty) return [];
-
-  // Toplam değeri hesaplayın
-  _totalValue = _stocks.fold(0, (sum, stock) => sum + (stock.price * stock.amount));
-
-  // Toplam değer sıfır ise, işlem yapmayın
-  if (_totalValue <= 0) {
-    print("Total value is zero or negative. Cannot calculate percentages.");
-    return []; // Boş bir liste döndür
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserEmail().then((_) {
+      if (_userEmail != null) {
+        _fetchStocks(); // E-posta başarıyla alındıysa hisse senetlerini çek
+      } else {
+        print("User email is null, cannot fetch stocks.");
+      }
+    });
   }
 
-  return _stocks.map((stock) {
-    // Yüzde hesaplama
-    final value = (stock.price * stock.amount) / _totalValue * 100;
+  Future<void> _fetchUserEmail() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    _userEmail = prefs.getString('userEmail'); // E-posta adresini al
+    _userEmail = _sanitizedEmail(_userEmail); // E-posta adresini temizle
+    print("Fetched user email: $_userEmail");
+  }
 
-    // NaN kontrolü
-    if (value.isNaN) {
-      print("Calculated value is NaN for stock: ${stock.symbol}");
-      return null; // Eğer NaN ise null döndür
+// Örnek sanitize fonksiyonu
+  String? _sanitizedEmail(String? email) {
+    if (email == null) return null;
+    // Geçersiz karakterleri değiştir
+    return email
+        .replaceAll('@', '_at_')
+        .replaceAll('.', '_dot_')
+        .trim(); // Boşlukları temizle
+  }
+
+  List<PieChartSectionData> _buildPieChartSections() {
+    // Eğer hisse senedi listesi boşsa, boş bir liste döndür
+    if (_stocks.isEmpty) return [];
+
+    // Toplam değeri hesaplayın
+    _totalValue =
+        _stocks.fold(0, (sum, stock) => sum + (stock.price * stock.amount));
+
+    // Toplam değer sıfır ise, işlem yapmayın
+    if (_totalValue <= 0) {
+      print("Total value is zero or negative. Cannot calculate percentages.");
+      return []; // Boş bir liste döndür
     }
 
-    return PieChartSectionData(
-      color: Colors.primaries[_stocks.indexOf(stock) % Colors.primaries.length], // Renk belirleme
-      value: value,
-      title: '${stock.symbol}\n${_numberFormat.format(value)}%', // Başlık formatlama
-      radius: 50, // Çemberin yarıçapı
-      titleStyle: TextStyle(color: Colors.white, fontSize: 12), // Başlık stili
-    );
-  }).where((section) => section != null).cast<PieChartSectionData>().toList(); // null olanları filtreleme
-}
+    return _stocks
+        .map((stock) {
+          // Yüzde hesaplama
+          final value = (stock.price * stock.amount) / _totalValue * 100;
 
+          // NaN kontrolü
+          if (value.isNaN) {
+            print("Calculated value is NaN for stock: ${stock.symbol}");
+            return null; // Eğer NaN ise null döndür
+          }
 
-
-  
+          return PieChartSectionData(
+            color: Colors.primaries[_stocks.indexOf(stock) %
+                Colors.primaries.length], // Renk belirleme
+            value: value,
+            title:
+                '${stock.symbol}\n${_numberFormat.format(value)}%', // Başlık formatlama
+            radius: 50, // Çemberin yarıçapı
+            titleStyle:
+                TextStyle(color: Colors.white, fontSize: 12), // Başlık stili
+          );
+        })
+        .where((section) => section != null)
+        .cast<PieChartSectionData>()
+        .toList(); // null olanları filtreleme
+  }
 
   // Hisse ekleme popup'ı
   void _showAddSymbolDialog() {
@@ -260,38 +268,38 @@ List<PieChartSectionData> _buildPieChartSections() {
     );
   }
 
+  Future<void> _fetchStocks() async {
+  final String? userEmail = _userEmail;
+  final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail');
 
-
-Future<void> _fetchStocks() async {
-  final String? userEmail = _userEmail; 
-  final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail'); 
-
-  _portfolioRef.once().then((DatabaseEvent event) {
-    final snapshot = event.snapshot; // DatabaseEvent'ten snapshot alın
+  _portfolioRef.once().then((DatabaseEvent event) async {
+    final snapshot = event.snapshot;
     if (snapshot.exists) {
       print("snapshot.value: ${snapshot.value}");
 
-      // snapshot.value'in Map olduğunu kontrol edin
       if (snapshot.value is Map) {
         Map<Object?, Object?> rawMap = snapshot.value as Map<Object?, Object?>;
 
-        // Dönüşüm işlemi: Map'i dinamik bir yapıya çeviriyoruz
         List<Stock> stocksList = rawMap.entries.map((entry) {
-          // entry.value'yı Map<String, dynamic> olarak kullan
           var stockData = entry.value as Map<Object?, dynamic>;
-         return Stock.fromMap({
+          return Stock.fromMap({
             'symbol': stockData['symbol'] as String,
-            'amount': (stockData['amount'] is int) ? stockData['amount'] as int : (stockData['amount'] as double).toInt(), // amount'u int'e dönüştür
-            'price': (stockData['price'] is int) ? (stockData['price'] as int).toDouble() : stockData['price'] as double // price'ı double'a dönüştür
+            'amount': (stockData['amount'] is int)
+                ? stockData['amount'] as int
+                : (stockData['amount'] as double).toInt(),
+            'price': (stockData['price'] is int)
+                ? (stockData['price'] as int).toDouble()
+                : stockData['price'] as double,
           });
         }).toList();
 
         // Listeyi güncelleyin
         setState(() {
-          _stocks = stocksList; // Hisse senetlerini tutan bir listeyi güncelleyiniz
+          _stocks = stocksList;
         });
 
-        print("Fetched stocks: ${_stocks.length}");
+        // Kar/Zarar hesaplama işlemini başlat
+        await _calculateProfitLoss();
       } else {
         print("Snapshot value is not a Map.");
       }
@@ -303,68 +311,93 @@ Future<void> _fetchStocks() async {
   });
 }
 
+// Kar/Zarar hesaplaması
+Future<void> _calculateProfitLoss() async {
+  double totalInvestment = 0.0;
+  double totalCurrentValue = 0.0;
 
+  for (var stock in _stocks) {
+    // Alış maliyetini hesapla
+    totalInvestment += stock.amount * stock.price;
 
+    // Her hisse senedinin güncel fiyatını getir
+    var lastPriceMap = await stock.symbol.fetchLastPrice();
+    var lastPrice = lastPriceMap['lastPrice'] ?? 0.0;
 
+    // Güncel piyasa değerini hesapla
+    totalCurrentValue += stock.amount * lastPrice;
+  }
 
+  // Kar/Zarar hesaplaması
+  double calculatedProfitLoss = totalCurrentValue - totalInvestment;
+
+  // Ekranı güncelle
+  setState(() {
+    profitLoss = calculatedProfitLoss;
+  });
+
+  print("Profit/Loss: $profitLoss");
+}
 
 
 // Yeni hisse ekleme işlemi
-void _addStock(String symbol, int amount, double price) {
-  Stock newStock = Stock(symbol: symbol.toUpperCase(), amount: amount, price: price);
-  final String? userEmail = _userEmail; 
-  final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail'); 
-  _portfolioRef
-      .child(symbol.toUpperCase()) // Hisse sembolünü anahtar olarak kullan
-      .set(newStock.toMap())
-      .then((_) {
-        _fetchStocks();
-    print("Stock added: ${newStock.toMap()}");
-  }).catchError((error) {
-    print("Failed to add stock: $error");
-  });
-}
+  void _addStock(String symbol, int amount, double price) {
+    Stock newStock =
+        Stock(symbol: symbol.toUpperCase(), amount: amount, price: price);
+    final String? userEmail = _userEmail;
+    final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail');
+    _portfolioRef
+        .child(symbol.toUpperCase()) // Hisse sembolünü anahtar olarak kullan
+        .set(newStock.toMap())
+        .then((_) {
+      _fetchStocks();
+      print("Stock added: ${newStock.toMap()}");
+    }).catchError((error) {
+      print("Failed to add stock: $error");
+    });
+  }
 
 // Hisse güncelleme işlemi
-Future<void> _updateStock(String key, String symbol, int amount, double price) async {
-  Stock updatedStock = Stock(
-    symbol: symbol.toUpperCase(),
-    amount: amount,
-    price: price,
-  );
+  Future<void> _updateStock(
+      String key, String symbol, int amount, double price) async {
+    Stock updatedStock = Stock(
+      symbol: symbol.toUpperCase(),
+      amount: amount,
+      price: price,
+    );
 
-  final String? userEmail = _userEmail; 
-  if (userEmail == null) {
-    print("User email is null. Cannot update stock.");
-    return;
+    final String? userEmail = _userEmail;
+    if (userEmail == null) {
+      print("User email is null. Cannot update stock.");
+      return;
+    }
+
+    final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail');
+    try {
+      await _portfolioRef.child(symbol.toUpperCase()).set(updatedStock.toMap());
+      print("Stock updated: ${updatedStock.toMap()}");
+
+      await _fetchStocks(); // Fetch updated stocks after the update
+    } catch (error) {
+      print("Failed to update stock: $error");
+    }
   }
-
-  final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail'); 
-  try {
-    await _portfolioRef.child(symbol.toUpperCase()).set(updatedStock.toMap());
-    print("Stock updated: ${updatedStock.toMap()}");
-    
-    await _fetchStocks(); // Fetch updated stocks after the update
-  } catch (error) {
-    print("Failed to update stock: $error");
-  }
-}
-
 
 // Hisse silme işlemi
-void _deleteStock(String symbol) { // Anahtar olarak sembol kullan
-  final String? userEmail = _userEmail; 
-  final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail'); 
-  _portfolioRef.child(symbol.toUpperCase()).remove().then((_) {
-    _fetchStocks();
-    print("Stock deleted");
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Stock deleted successfully')),
-    );
-  }).catchError((error) {
-    print("Failed to delete stock: $error");
-  });
-}
+  void _deleteStock(String symbol) {
+    // Anahtar olarak sembol kullan
+    final String? userEmail = _userEmail;
+    final _portfolioRef = FirebaseDatabase.instance.ref('portfolio/$userEmail');
+    _portfolioRef.child(symbol.toUpperCase()).remove().then((_) {
+      _fetchStocks();
+      print("Stock deleted");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stock deleted successfully')),
+      );
+    }).catchError((error) {
+      print("Failed to delete stock: $error");
+    });
+  }
 
   // Hisse uzun basılınca açılan menü
   void _showContextMenu(Stock stock, String key) {
@@ -409,12 +442,41 @@ void _deleteStock(String symbol) { // Anahtar olarak sembol kullan
           ),
           Container(
             padding: EdgeInsets.all(15),
-            child: Text(
-              '${_numberFormat.format(_totalValue)}', // Para formatı
-              style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end, // Sağda hizalama
+              children: [
+                // Toplam Değer (Total Value)
+                Text(
+                  '${_numberFormat.format(_totalValue)}', // Para formatı
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 10), // Araya boşluk ekleyelim
+
+                // Kar/Zarar Tutarı
+                if (profitLoss != null) // Kar/Zarar tutarı varsa göster
+                  Text(
+                    _numberFormat
+                        .format(profitLoss!), // Kar/Zarar tutarını formatla
+                    style: TextStyle(
+                      fontSize: 16, // Yazı boyutu
+                      fontWeight: FontWeight.normal,
+                      color: (profitLoss <
+                              0) // Kar/Zarar negatifse kırmızı, pozitifse yeşil
+                          ? Colors.red
+                          : Colors.green,
+                    ),
+                  )
+                else
+                  // Eğer profitLoss null ise alternatif bir metin göster
+                  Text(
+                    'Kar/Zarar bilgisi mevcut değil', // Alternatif metin
+                    style: TextStyle(color: Colors.grey),
+                  ),
+              ],
             ),
           ),
           Expanded(
@@ -429,11 +491,90 @@ void _deleteStock(String symbol) { // Anahtar olarak sembol kullan
                 return GestureDetector(
                   onLongPress: () => _showContextMenu(stock, key),
                   child: ListTile(
-                    title: Text(stock.symbol,
-                        style: TextStyle(color: Colors.white)),
+                    title: Text(
+                      stock.symbol,
+                      style: TextStyle(color: Colors.white),
+                    ),
                     subtitle: Text(
-                      '${appLocalizations.translate('amount')}: ${_numberFormat.format(stock.amount)}\n${appLocalizations.translate('price')}: ${_numberFormat.format(stock.price)}', // Para formatı
+                      '${appLocalizations.translate('amount')}: ${_numberFormat.format(stock.amount)}\n'
+                      '${appLocalizations.translate('price')}: ${_numberFormat.format(stock.price)}',
                       style: TextStyle(color: Colors.grey),
+                    ),
+                    trailing: FutureBuilder<Map<String, double?>>(
+                      future: stock.symbol
+                          .fetchLastPrice(), // Son fiyat ve yüzdelik değişim almak için çağırıyoruz
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return Text(
+                            '...', // Yükleniyor durumu
+                            style: TextStyle(color: Colors.grey),
+                          );
+                        } else if (snapshot.hasError) {
+                          return Text(
+                            appLocalizations.translate(
+                                'error_fetching_price'), // Hata durumu
+                            style: TextStyle(color: Colors.grey),
+                          );
+                        } else {
+                          final lastPrice = snapshot.data?['lastPrice'];
+                          final price = stock.price; // Portföy fiyatı
+                          final amount = stock.amount; // Toplam miktar
+
+                          String lastPriceFormatted = lastPrice != null
+                              ? _numberFormat.format(lastPrice)
+                              : appLocalizations
+                                  .translate('no_data'); // Son fiyat yoksa
+
+                          // Yüzde değişim hesaplama
+                          double? percentChange;
+                          if (lastPrice != null && price != 0) {
+                            percentChange = ((lastPrice - price) / price) *
+                                100; // Yüzde değişimi hesapla
+                          }
+
+                          // Kar/Zarar hesaplama
+                          double? profitLoss;
+                          if (lastPrice != null) {
+                            profitLoss = (lastPrice - price) *
+                                amount; // Kar/Zarar hesapla
+                          }
+
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                lastPriceFormatted, // Son fiyat
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                              if (percentChange !=
+                                  null) // Yüzde değişim varsa göster
+                                Text(
+                                  '(${percentChange.toStringAsFixed(2)}%)', // Yüzde değişimi 2 ondalık ile göster
+                                  style: TextStyle(
+                                    color: percentChange <
+                                            0 // Yüzde değişimi negatifse kırmızı, pozitifse yeşil
+                                        ? Colors.red
+                                        : Colors.green,
+                                  ),
+                                ),
+                              if (profitLoss !=
+                                  null) // Kar/Zarar tutarı varsa göster
+                                Text(
+                                  _numberFormat.format(
+                                      profitLoss), // Kar/Zarar tutarını formatla
+                                  style: TextStyle(
+                                    color: profitLoss <
+                                            0 // Kar/Zarar negatifse kırmızı, pozitifse yeşil
+                                        ? Colors.red
+                                        : Colors.green,
+                                  ),
+                                ),
+                            ],
+                          );
+                        }
+                      },
                     ),
                   ),
                 );
