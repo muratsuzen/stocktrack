@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "626816587062",
+    "project_id": "stocktrack-c933f",
+    "storage_bucket": "stocktrack-c933f.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:626816587062:android:928a648043c379d8bdcf97",
+        "android_client_info": {
+          "package_name": "com.msstrack"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "626816587062-dm4rdg33k1v15arig7s5mn1u0q80e5vg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlCApNQX-jgzb0_795zH1QASyt-qeK_cY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "626816587062-dm4rdg33k1v15arig7s5mn1u0q80e5vg.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "626816587062-v39n03trp0ipupqibdeg0rmiu8u43doq.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.stocktrack"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

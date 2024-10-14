@@ -1,0 +1,23 @@
+{
+    "welcome": "Hoş Geldiniz",
+    "email": "E-posta",
+    "password": "Şifre",
+    "sign_in_email": "E-posta ile Giriş Yap",
+    "or": "veya",
+    "sign_in_google": "Google ile Giriş Yap",
+    "stock_track": "Stok Takip",
+    "portfolio": "Portföy",
+    "empty": "Boş Ekran",
+    "add_symbol": "Hisse Ekle",
+    "amount": "Miktar",
+    "price": "Fiyat",
+    "cancel": "İptal",
+    "add": "Ekle",
+    "update": "Güncelle",
+    "delete": "Sil",
+    "total_value": "Toplam Değer",
+    "no_data_found": "Veri bulunamadı",
+    "stock_updated": "Hisse güncellendi",
+    "failed_to_add_stock": "Hisse eklenemedi",
+    "failed_to_update_stock": "Hisse güncellenemedi"
+}
