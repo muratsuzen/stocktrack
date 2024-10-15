@@ -3,7 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:stocktrack/screens/home_screen.dart';
-import '../l10n/app_localizations.dart'; 
+import '../l10n/app_localizations.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatelessWidget {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -18,9 +19,10 @@ class LoginPage extends StatelessWidget {
         password: _passwordController.text,
       );
       if (userCredential.user != null) {
-        // E-posta adresini sakla
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('userEmail', _emailController.text); 
+        // Kullanıcının ID'sini sakla
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userId', userCredential.user!.uid);
+        await prefs.setString('userEmail', _emailController.text);
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => HomeScreen()),
@@ -33,20 +35,39 @@ class LoginPage extends StatelessWidget {
   }
 
   Future<User?> _signInWithGoogle(BuildContext context) async {
-    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-    final GoogleSignInAuthentication? googleAuth = await googleUser?.authentication;
+    try {
+      // Google ile giriş yap
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        // Kullanıcı giriş işlemini iptal etti
+        return null;
+      }
 
-    final AuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth?.accessToken,
-      idToken: googleAuth?.idToken,
-    );
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-    UserCredential userCredential = await _auth.signInWithCredential(credential);
-    if (userCredential.user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen()),
+      // Kimlik bilgilerini oluştur
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
+
+      // Firebase'de giriş yap
+      UserCredential userCredential = await _auth.signInWithCredential(credential);
+      if (userCredential.user != null) {
+        // Kullanıcının ID'sini sakla
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userId', userCredential.user!.uid);
+        
+        // Ana ekrana yönlendir
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomeScreen()),
+        );
+      }
+      return userCredential.user;  // Kullanıcıyı döndür
+    } catch (error) {
+      print('Giriş hatası: $error');  // Hata mesajını yazdır
+      return null;
     }
   }
 
@@ -98,8 +119,19 @@ class LoginPage extends StatelessWidget {
               child: Text(appLocalizations.translate('sign_in_google')), // Çeviri ile metin
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
-                foregroundColor: Colors.white
+                foregroundColor: Colors.white,
               ),
+            ),
+            SizedBox(height: 20),
+            // Kayıt ol butonu
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => RegisterPage()), // Kayıt sayfasına yönlendir
+                );
+              },
+              child: Text(appLocalizations.translate('register')), // Çeviri ile metin
             ),
           ],
         ),
